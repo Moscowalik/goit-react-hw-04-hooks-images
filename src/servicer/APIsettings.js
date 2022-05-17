@@ -34,7 +34,7 @@ export default class ApiService {
   }
 
   incrementPage() {
-    this.options.params.page += 1;
+    this.options.params.page = 1;
   }
 
   resetPage() {
@@ -43,6 +43,9 @@ export default class ApiService {
 
   get page() {
     return this.options.params.page;
+  }
+  set page(newPage) {
+    this.options.params.page = newPage;
   }
 
   get hits() {

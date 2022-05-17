@@ -18,11 +18,13 @@ export default class ImageGallery extends Component {
     status: 'idle',
     errorMessage: '',
     page: 1,
+    showModal: false,
   };
   componentDidUpdate(prevProps, prevState) {
     const prevQuery = prevProps.searchQuery;
     const nextQuery = this.props.searchQuery;
-
+    const prevPage = prevState.page;
+    const nextPage = this.state.page;
     if (prevQuery !== nextQuery) {
       this.setState({ status: 'pending' });
       api.resetPage();
@@ -42,41 +44,49 @@ export default class ImageGallery extends Component {
         }
       });
     }
+    if (prevPage !== nextPage) {
+      api.page = this.state.page;
+      api.fetchData().then(nextQuery => {
+        this.setState(prev => ({
+          searchQuery: [...prev.searchQuery, ...nextQuery.hits],
+          status: 'resolved',
+        }));
+        window.scrollTo({
+          top: document.documentElement.scrollHeight,
+          behavior: 'smooth',
+        });
+      });
+    }
   }
   handleImageClick = value => {
-    this.setState({
+    this.setState(state => ({
       largeURL: value,
-      status: 'modal',
-    });
+      showModal: !state.showModal,
+    }));
   };
   onModalClose = () => {
-    this.setState({
-      status: 'resolved',
-    });
+    this.setState(state => ({
+      showModal: !state.showModal,
+    }));
   };
 
   handleClickMore = e => {
-    api.incrementPage();
-    api.fetchData().then(nextQuery => {
-      this.setState(prev => ({
-        searchQuery: [...prev.searchQuery, ...nextQuery.hits],
-        status: 'resolved',
-      }));
-      window.scrollTo({
-        top: document.documentElement.scrollHeight,
-        behavior: 'smooth',
-      });
-    });
+    this.setState(prev => ({
+      page: prev.page + 1,
+    }));
   };
 
   render() {
-    const { searchQuery, status, searchPoint, largeURL, errorMessage } =
-      this.state;
+    const {
+      searchQuery,
+      status,
+      searchPoint,
+      largeURL,
+      errorMessage,
+      showModal,
+    } = this.state;
     if (status === 'idle') {
       return <div className="IdleContainer">Enter your request</div>;
-    }
-    if (status === 'pending') {
-      return <Loader />;
     }
     if (status === 'error') {
       return <Notification type="Error" title="Error" text={errorMessage} />;
@@ -94,13 +104,14 @@ export default class ImageGallery extends Component {
             ))}
           </ul>
           {searchPoint > 12 && <Button onClick={this.handleClickMore} />}
+          {showModal && (
+            <Modal largeImageUrl={largeURL} onModalClose={this.onModalClose} />
+          )}
         </>
       );
     }
-    if (status === 'modal') {
-      return (
-        <Modal largeImageUrl={largeURL} onModalClose={this.onModalClose} />
-      );
+    if (status === 'pending') {
+      return <Loader />;
     }
   }
 }
