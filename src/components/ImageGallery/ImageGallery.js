@@ -9,10 +9,9 @@ import { Notification } from 'react-pnotify';
 import './ImageGallery.css';
 
 const Status = {
-  IDLE: 'idle', //  простой, стоит и ничего не делает
-  PENDING: 'pending', // ожидается выполнение
-  RESOLVED: 'resolved', // выполнилось с результатом хорошо
-  REJECTED: 'rejected', // отклонено
+  IDLE: 'idle',
+  RESOLVED: 'resolved',
+  REJECTED: 'rejected',
 };
 
 export default function ImageGallery({ searchQuery }) {
@@ -26,19 +25,17 @@ export default function ImageGallery({ searchQuery }) {
   const [activeModalImg, setActiveModalImg] = useState(null);
   const [lastPage, setLastPage] = useState(1);
 
-  const loadImages = (searchImgName, page) => {
+  const loadImages = (searchQuery, page) => {
     setLoading(true);
     setLastPage(page);
 
-    fetchImages(searchImgName, page)
+    fetchImages(searchQuery, page)
       .then(({ hits, total }) => {
         if (!total) {
-          const newError = new Error(
-            `There is no picture with ${searchImgName} name, please enter another request`
-          );
-
-          setError(newError);
           setStatus(Status.REJECTED);
+          setError(
+            `There is no picture with ${searchQuery} name, please enter another request`
+          );
         } else {
           setImages(imgs => [...(imgs || []), ...hits]);
           setSearchPoint(total);
@@ -86,13 +83,13 @@ export default function ImageGallery({ searchQuery }) {
     loadImages(searchQuery, 1);
   }, [searchQuery]);
 
-  if (status === 'idle') {
+  if (status === Status.IDLE) {
     return <div className="IdleContainer">Enter your request</div>;
   }
-  if (status === 'error') {
+  if (status === Status.REJECTED) {
     return <Notification type="Error" title="Error" text={error} />;
   }
-  if (status === 'resolved') {
+  if (status === Status.RESOLVED) {
     return (
       <>
         <ul className="ImageGallery">
