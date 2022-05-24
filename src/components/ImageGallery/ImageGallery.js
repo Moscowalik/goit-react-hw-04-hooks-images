@@ -1,5 +1,5 @@
-import React, { Component } from 'react';
-import ApiService from 'servicer/APIsettings';
+import { useEffect, useState } from 'react';
+import fetchImages from 'servicer/APIsettings';
 import ImageGalleryItem from 'components/ImageGalleryItem/ImageGalleryItem';
 import Loader from 'components/Loader/Loader';
 import Button from 'components/Button/Button';
@@ -8,110 +8,108 @@ import { Notification } from 'react-pnotify';
 
 import './ImageGallery.css';
 
-const api = new ApiService();
+const Status = {
+  IDLE: 'idle', //  простой, стоит и ничего не делает
+  PENDING: 'pending', // ожидается выполнение
+  RESOLVED: 'resolved', // выполнилось с результатом хорошо
+  REJECTED: 'rejected', // отклонено
+};
 
-export default class ImageGallery extends Component {
-  state = {
-    searchQuery: [],
-    searchPoint: null,
-    largeURL: '',
-    status: 'idle',
-    errorMessage: '',
-    page: 1,
-    showModal: false,
-  };
-  componentDidUpdate(prevProps, prevState) {
-    const prevQuery = prevProps.searchQuery;
-    const nextQuery = this.props.searchQuery;
-    const prevPage = prevState.page;
-    const nextPage = this.state.page;
-    if (prevQuery !== nextQuery) {
-      this.setState({ status: 'pending' });
-      api.resetPage();
-      api.query = nextQuery;
-      api.fetchData().then(nextQuery => {
-        if (nextQuery.hits.length > 0) {
-          this.setState({
-            searchQuery: nextQuery.hits,
-            searchPoint: nextQuery.total,
-            status: 'resolved',
-          });
+export default function ImageGallery({ searchQuery }) {
+  const [images, setImages] = useState([]);
+  const [searchPoint, setSearchPoint] = useState(null);
+  const [error, setError] = useState(null);
+  const [status, setStatus] = useState(Status.IDLE);
+  // const [showModal, setShowModal] = useState(false);
+  const [showModal, setShowModal] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [activeModalImg, setActiveModalImg] = useState(null);
+  const [lastPage, setLastPage] = useState(1);
+
+  const loadImages = (searchImgName, page) => {
+    setLoading(true);
+    setLastPage(page);
+
+    fetchImages(searchImgName, page)
+      .then(({ hits, total }) => {
+        if (!total) {
+          const newError = new Error(
+            `There is no picture with ${searchImgName} name, please enter another request`
+          );
+
+          setError(newError);
+          setStatus(Status.REJECTED);
         } else {
-          this.setState({
-            status: 'error',
-            errorMessage: 'Nothing found!',
-          });
+          setImages(imgs => [...(imgs || []), ...hits]);
+          setSearchPoint(total);
+          setStatus(Status.RESOLVED);
         }
+
+        if (page !== 1) {
+          setTimeout(() => {
+            window.scrollTo({
+              top: document.documentElement.scrollHeight,
+              behavior: 'smooth',
+            });
+          }, 0);
+        }
+      })
+      .catch(newError => {
+        setError(newError);
+        setStatus(Status.REJECTED);
       });
+
+    setLoading(false);
+  };
+
+  const onModalClose = () => {
+    setShowModal(!showModal);
+  };
+
+  const onModalOpen = activeModalImg => {
+    setActiveModalImg(activeModalImg);
+    onModalClose();
+  };
+
+  const onBtnClick = () => {
+    setLoading(true);
+    loadImages(searchQuery, lastPage + 1);
+  };
+
+  useEffect(() => {
+    if (!searchQuery) {
+      return;
     }
-    if (prevPage !== nextPage) {
-      api.page = this.state.page;
-      api.fetchData().then(nextQuery => {
-        this.setState(prev => ({
-          searchQuery: [...prev.searchQuery, ...nextQuery.hits],
-          status: 'resolved',
-        }));
-        window.scrollTo({
-          top: document.documentElement.scrollHeight,
-          behavior: 'smooth',
-        });
-      });
-    }
+
+    setImages([]);
+    setLoading(false);
+    loadImages(searchQuery, 1);
+  }, [searchQuery]);
+
+  if (status === 'idle') {
+    return <div className="IdleContainer">Enter your request</div>;
   }
-  handleImageClick = value => {
-    this.setState(state => ({
-      largeURL: value,
-      showModal: !state.showModal,
-    }));
-  };
-  onModalClose = () => {
-    this.setState(state => ({
-      showModal: !state.showModal,
-    }));
-  };
-
-  handleClickMore = e => {
-    this.setState(prev => ({
-      page: prev.page + 1,
-    }));
-  };
-
-  render() {
-    const {
-      searchQuery,
-      status,
-      searchPoint,
-      largeURL,
-      errorMessage,
-      showModal,
-    } = this.state;
-    if (status === 'idle') {
-      return <div className="IdleContainer">Enter your request</div>;
-    }
-    if (status === 'error') {
-      return <Notification type="Error" title="Error" text={errorMessage} />;
-    }
-    if (status === 'resolved') {
-      return (
-        <>
-          <ul className="ImageGallery">
-            {searchQuery.map(searchQuery => (
-              <ImageGalleryItem
-                key={searchQuery.id}
-                params={searchQuery}
-                handleImageClick={this.handleImageClick}
-              />
-            ))}
-          </ul>
-          {searchPoint > 12 && <Button onClick={this.handleClickMore} />}
-          {showModal && (
-            <Modal largeImageUrl={largeURL} onModalClose={this.onModalClose} />
-          )}
-        </>
-      );
-    }
-    if (status === 'pending') {
-      return <Loader />;
-    }
+  if (status === 'error') {
+    return <Notification type="Error" title="Error" text={error} />;
+  }
+  if (status === 'resolved') {
+    return (
+      <>
+        <ul className="ImageGallery">
+          {images.map(gallerySearchQuery => (
+            <ImageGalleryItem
+              key={gallerySearchQuery.id}
+              params={gallerySearchQuery}
+              handleImageClick={onModalOpen}
+            />
+          ))}
+        </ul>
+        {loading && <Loader />}
+        {searchPoint > 12 && <Button onClick={onBtnClick} />}
+        {showModal && (
+          <Modal largeImageUrl={activeModalImg} onModalClose={onModalClose} />
+        )}
+      </>
+    );
   }
 }
